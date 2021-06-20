@@ -1,0 +1,256 @@
+Задание 4.1
+База данных содержит список аэропортов практически всех крупных городов России. 
+В большинстве городов есть только один аэропорт. Исключение составляет:
+	Решение:
+		select
+			a.city,
+			count(a.airport_name)
+		from
+			dst_project.airports as a
+		group by 1
+		order by 2 desc
+		limit 2
+
+	Ответ:
+		Moscow, Ulyanovsk
+
+
+Задание 4.2
+	Вопрос 1. Таблица рейсов содержит всю информацию о прошлых, текущих и запланированных рейсах. 
+	Сколько всего статусов для рейсов определено в таблице?
+		Решение:
+			select
+				count(distinct f.status)
+			from
+				dst_project.flights as f
+
+		Ответ:
+			6
+
+	Вопрос 2. Какое количество самолетов находятся в воздухе на момент среза в базе 
+	(статус рейса «самолёт уже вылетел и находится в воздухе»).
+		Решение:
+			select
+				count(f.*)
+			from
+				dst_project.flights as f
+			where
+				f.status = 'Departed'
+
+		Ответ:
+			58
+	 
+	Вопрос 3. Места определяют схему салона каждой модели. Сколько мест имеет самолет модели  (Boeing 777-300)?
+		Решение:
+			select
+				count(s.*)
+			from
+				dst_project.seats as s
+					join dst_project.aircrafts as a
+						on s.aircraft_code = a.aircraft_code
+			where
+				a.model = 'Boeing 777-300'
+		Ответ:
+			402
+
+	Вопрос 4. Сколько состоявшихся (фактических) рейсов было совершено между 1 апреля 2017 года и 1 сентября 2017 года?
+	Здесь и далее состоявшийся рейс означает, что он не отменён, и самолёт прибыл в пункт назначения.
+		Решение:
+			select
+				count(f.*)
+			from
+				dst_project.flights as f
+			where
+				f.status = 'Arrived'
+				and f.actual_arrival between '1 April 2017' and '1 September 2017'
+		Ответ:
+			74227
+
+
+Задание 4.3
+	Вопрос 1. Сколько всего рейсов было отменено по данным базы?
+		Решение:
+			select
+				count(f.*)
+			from
+				dst_project.flights as f
+			where
+				f.status = 'Cancelled'			
+		Ответ:
+			437		
+	Вопрос 2. Сколько самолетов моделей типа Boeing, Sukhoi Superjet, Airbus находится в базе авиаперевозок?
+		Решение:
+			select
+				a.*
+			from
+				dst_project.aircrafts as a
+			where
+				a.model like 'Boeing%'
+				or a.model like 'Sukhoi Superjet%'
+				or a.model like 'Airbus%'
+			order by 
+				a.model
+		Ответ:
+			Boeing:
+				3 
+			Sukhoi Superjet:
+				1
+			Airbus:
+				3
+		
+	Вопрос 3. В какой части (частях) света находится больше аэропортов?
+		Решение:
+			select
+					'Europe' as entity,
+					(
+						select
+							count(a.*)
+						from
+							dst_project.airports as a
+						where
+							a.timezone like 'Europe%'
+					) as airport_cnt
+				union
+			select
+					'Australia' as entity,
+					(
+						select
+							count(a.*)
+						from
+							dst_project.airports as a
+						where
+							a.timezone like 'Australia%'
+					) as airport_cnt
+				union
+			select
+					'Asia' as entity,
+					(
+						select
+							count(a.*)
+						from
+							dst_project.airports as a
+						where
+							a.timezone like 'Asia%'
+					) as airport_cnt
+		Ответ:
+			Europe, Asia
+			
+	Вопрос 4. У какого рейса была самая большая задержка прибытия за все время сбора данных? 
+	Введите id рейса (flight_id).
+		Решение:
+			select
+				f.flight_id,
+				f.actual_arrival - f.scheduled_arrival as delay
+			from
+				dst_project.flights as f
+			where
+				f.actual_arrival notnull
+			order by 2 desc
+			limit 1
+		Ответ:
+			157571
+
+Задание 4.4
+	Вопрос 1. Когда был запланирован самый первый вылет, сохраненный в базе данных?
+		Решение:
+			select
+				to_char(sd.scheduled_departure, 'DD.MM.YYYY')
+			from
+				(
+				select
+					f.scheduled_departure
+				from
+					dst_project.flights as f
+				order by 1
+				limit 1
+				) as sd
+		Ответ:
+			14.08.2016
+			
+	Вопрос 2. Сколько минут составляет запланированное время полета в самом длительном рейсе?
+		Решение:
+			select
+				extract (epoch from (
+					select
+						f.scheduled_arrival - f.scheduled_departure as flight_time
+					from
+						dst_project.flights as f
+					order by 1 desc
+					limit 1
+				)) / 60 as minutes
+		Ответ:
+			530
+	 
+	Вопрос 3. Между какими аэропортами пролегает самый длительный по времени запланированный рейс?
+		Решение:
+			select
+				f.departure_airport,
+				f.arrival_airport,
+				f.scheduled_arrival - f.scheduled_departure as flight_time
+			from
+				dst_project.flights as f
+			order by 3 desc
+			limit 1
+		Ответ:
+			DME - UUS
+			
+	Вопрос 4. Сколько составляет средняя дальность полета среди всех самолетов в минутах?
+	Секунды округляются в меньшую сторону (отбрасываются до минут).
+		Решение:
+			with ft as (
+			select
+				f.scheduled_arrival - f.scheduled_departure as flight_time
+			from
+				dst_project.flights as f
+			)
+			select
+				extract (epoch from (
+					select
+						avg(ft.flight_time)
+					from
+						ft
+				)) / 60 as minutes
+		Ответ:
+			128
+
+Задание 4.5
+	Вопрос 1. Мест какого класса у SU9 больше всего?
+		Решение:
+			select distinct
+				a.model,
+				s.fare_conditions,
+				count(s.*) over (partition by a.model, s.fare_conditions)
+			from
+				dst_project.aircrafts as a
+					join dst_project.seats as s
+						on a.aircraft_code = s.aircraft_code
+			where
+				a.model = 'Sukhoi Superjet-100'
+			order by 3 desc		
+		Ответ:
+			Economy
+
+	Вопрос 2. Какую самую минимальную стоимость составило бронирование за всю историю?
+		Решение:
+			select 
+				b.total_amount
+			from
+				dst_project.bookings as b
+			order by
+				total_amount
+			limit 1
+		Ответ:
+			3400
+	
+	Вопрос 3. Какой номер места был у пассажира с id = 4313 788533?
+		Решение:
+			select 
+				bp.seat_no
+			from
+				dst_project.tickets as t
+					join dst_project.boarding_passes as bp
+						on t.ticket_no = bp.ticket_no
+			where
+				t.passenger_id = '4313 788533'
+		Ответ:
+			2A
