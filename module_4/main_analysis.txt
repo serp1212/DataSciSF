@@ -1,0 +1,60 @@
+Приводим известные данные по рейсам
+
+with
+    freq as (
+    select distinct
+        f.flight_no,
+        f.scheduled_departure - lag(f.scheduled_departure) over
+            (partition by f.flight_no order by f.scheduled_departure) frequency
+    from
+        dst_project.flights as f
+    ),
+    distances as (
+    select
+            'AAQ' as departure_airport,
+            'NOZ' as arrival_airport,
+            3658 as distance
+        union
+    select
+            'AAQ' as departure_airport,
+            'SVO' as arrival_airport,
+            1208 as distance
+        union
+    select
+            'AAQ' as departure_airport,
+            'EGO' as arrival_airport,
+            638 as distance
+    )
+select
+    f.flight_no,
+    'Anapa' as departure,
+    ap.city as destination,
+    d.distance,
+    count(distinct f.*) as flights_cnt,
+    'every ' || avg(freq.frequency) as freq,
+    to_char(avg(f.scheduled_arrival - f.scheduled_departure), 'HH24:MI') as scheduled_flight_time,
+    to_char(avg(f.actual_arrival - f.actual_departure), 'HH24:MI') as actual_flight_time,
+    sum(tf.amount) as total_amount,
+    a.model as aircraft
+from
+    dst_project.flights as f
+        join dst_project.aircrafts as a
+            on f.aircraft_code = a.aircraft_code
+        join dst_project.airports as ap
+            on f.arrival_airport = ap.airport_code
+        join freq on f.flight_no = freq.flight_no
+        left join dst_project.ticket_flights as tf
+            on f.flight_id = tf.flight_id
+        left join distances as d
+            on f.departure_airport = d.departure_airport
+                and f.arrival_airport = d.arrival_airport
+where
+    f.departure_airport = 'AAQ'
+    and (date_trunc('month', f.scheduled_departure) in ('2017-01-01','2017-02-01', '2017-12-01'))
+    and status not in ('Cancelled')
+group by
+    f.flight_no,
+    ap.city,
+    d.distance,
+    a.model
+order by 1
