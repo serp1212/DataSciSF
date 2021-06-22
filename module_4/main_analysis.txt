@@ -1,4 +1,4 @@
-Приводим известные данные по рейсам
+--Приводим известные данные по рейсам
 
 with
     freq as (
@@ -58,3 +58,74 @@ group by
     d.distance,
     a.model
 order by 1
+
+
+-- Дано 3 маршруша с flight_id PG0194, PG0252, PG0480
+-- Изучаем данные по рейсам
+
+with
+	distances as (
+    select
+            'AAQ' as departure_airport,
+            'NOZ' as arrival_airport,
+            3658 as distance
+        union
+    select
+            'AAQ' as departure_airport,
+            'SVO' as arrival_airport,
+            1208 as distance
+        union
+    select
+            'AAQ' as departure_airport,
+            'EGO' as arrival_airport,
+            638 as distance
+    ),
+    expenditure as (
+    select
+            'Boeing 737-300' as aircraft,
+            22.5 as expend --г/км*пасс.
+        union
+    select
+            'Sukhoi Superjet-100',
+            15.1 as expend --г/км*пасс.
+    )
+select
+    f.flight_no,
+	f.flight_id,
+    to_char(f.scheduled_departure, 'DD Mon YY') as date,
+    ap.city as destination,
+    count(distinct b.boarding_no) as passengers,
+    d.distance,
+    to_char(avg(f.actual_arrival - f.actual_departure), 'HH24:MI') as actual_flight_time,
+    a.model as aircraft,
+    sum(tf.amount) as tickets_income,
+    (e.expend * d.distance * count(distinct b.boarding_no) * 47) as fuel_exp, 
+				--47 средняя цена топлива по России зимой 2021 с сайта https://favt.gov.ru/
+    sum(tf.amount) - (e.expend*d.distance*count(distinct b.boarding_no)*47) as profit
+from
+    dst_project.flights as f
+        join dst_project.aircrafts as a
+            on f.aircraft_code = a.aircraft_code
+        join dst_project.airports as ap
+            on f.arrival_airport = ap.airport_code
+        left join dst_project.ticket_flights as tf
+            on f.flight_id = tf.flight_id
+        left join distances as d
+            on f.departure_airport = d.departure_airport
+                and f.arrival_airport = d.arrival_airport
+        left join expenditure as e
+            on a.model = e.aircraft
+        left join dst_project.boarding_passes as b
+            on f.flight_id = b.flight_id
+        
+where
+    f.flight_no in ('PG0194', 'PG0252', 'PG0480')
+    and (date_trunc('month', f.scheduled_departure) in ('2017-01-01','2017-02-01', '2017-12-01'))
+    and status not in ('Cancelled')
+group by
+    f.flight_id,
+    ap.city,
+    d.distance,
+    a.model,
+    e.expend
+order by 11 --от менее прибыльных к более
