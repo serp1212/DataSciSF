@@ -1,4 +1,4 @@
---Приводим известные данные по рейсам
+﻿--Приводим известные данные по рейсам
 
 with
     freq as (
@@ -121,7 +121,6 @@ select
     ap.city as destination,
     b.passengers as passengers,
     s.seats as max_passengers,
-    round(b.passengers / s.seats * 100, 1) || '%' as occupancy,
     d.distance,
     to_char(f.actual_arrival - f.actual_departure, 'HH24:MI') as actual_flight_time,
     a.model as aircraft,
@@ -150,4 +149,4 @@ where
     f.flight_no in ('PG0194', 'PG0252', 'PG0480')
     and (date_trunc('month', f.scheduled_departure) in ('2017-01-01','2017-02-01', '2017-12-01'))
     and status not in ('Cancelled')
-order by 13 --от менее прибыльных к более
+order by 12 --от менее прибыльных к более
