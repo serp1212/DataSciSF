@@ -96,6 +96,22 @@ with
     from
         dst_project.seats as s
     group by 1
+    ),
+    amount as (
+    select
+        flight_id,
+        sum(amount) as amount
+    from
+        dst_project.ticket_flights
+    group by 1
+    ),
+    boarding as (
+    select
+        flight_id,
+        count(boarding_no) as passengers
+    from
+        dst_project.boarding_passes
+    group by 1
     )
     
 select
@@ -103,43 +119,35 @@ select
 	f.flight_id,
     to_char(f.scheduled_departure, 'DD Mon YY') as date,
     ap.city as destination,
-    count(distinct b.boarding_no) as passengers,
+    b.passengers as passengers,
     s.seats as max_passengers,
-    round(count(distinct b.boarding_no) / avg(s.seats) * 100, 1) || '%' as occupancy,
+    round(b.passengers / s.seats * 100, 1) || '%' as occupancy,
     d.distance,
-    to_char(avg(f.actual_arrival - f.actual_departure), 'HH24:MI') as actual_flight_time,
+    to_char(f.actual_arrival - f.actual_departure, 'HH24:MI') as actual_flight_time,
     a.model as aircraft,
-    sum(tf.amount) as tickets_income,
-    (e.expend * d.distance * count(distinct b.boarding_no) * 47) as fuel_exp, 
-				--47 средняя цена топлива по России зимой 2021 с сайта https://favt.gov.ru/
-    sum(tf.amount) - (e.expend*d.distance*count(distinct b.boarding_no)*47) as profit
+    am.amount as tickets_income,
+    (e.expend * d.distance * b.passengers * 0.047) as fuel_exp, 
+				--0.047 средняя цена топлива по России зимой 2021 с сайта https://favt.gov.ru/
+    am.amount - (e.expend * d.distance * b.passengers * 0.047) as profit
 from
     dst_project.flights as f
         join dst_project.aircrafts as a
             on f.aircraft_code = a.aircraft_code
         join dst_project.airports as ap
             on f.arrival_airport = ap.airport_code
-        left join dst_project.ticket_flights as tf
-            on f.flight_id = tf.flight_id
         left join distances as d
             on f.departure_airport = d.departure_airport
                 and f.arrival_airport = d.arrival_airport
         left join expenditure as e
             on a.model = e.aircraft
-        left join dst_project.boarding_passes as b
-            on f.flight_id = b.flight_id
         join sum_seats as s
             on f.aircraft_code = s.aircraft_code
-        
+        join amount as am
+            on f.flight_id=am.flight_id
+        join boarding as b
+            on f.flight_id = b.flight_id
 where
     f.flight_no in ('PG0194', 'PG0252', 'PG0480')
     and (date_trunc('month', f.scheduled_departure) in ('2017-01-01','2017-02-01', '2017-12-01'))
     and status not in ('Cancelled')
-group by
-    f.flight_id,
-    ap.city,
-    d.distance,
-    a.model,
-    e.expend,
-    s.seats
 order by 13 --от менее прибыльных к более
