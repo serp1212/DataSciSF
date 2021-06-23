@@ -88,13 +88,24 @@ with
     select
             'Sukhoi Superjet-100',
             15.1 as expend --г/км*пасс.
+    ),
+    sum_seats as (
+    select 
+        s.aircraft_code,
+        count(s.seat_no) as seats
+    from
+        dst_project.seats as s
+    group by 1
     )
+    
 select
     f.flight_no,
 	f.flight_id,
     to_char(f.scheduled_departure, 'DD Mon YY') as date,
     ap.city as destination,
     count(distinct b.boarding_no) as passengers,
+    s.seats as max_passengers,
+    round(count(distinct b.boarding_no) / avg(s.seats) * 100, 1) || '%' as occupancy,
     d.distance,
     to_char(avg(f.actual_arrival - f.actual_departure), 'HH24:MI') as actual_flight_time,
     a.model as aircraft,
@@ -117,6 +128,8 @@ from
             on a.model = e.aircraft
         left join dst_project.boarding_passes as b
             on f.flight_id = b.flight_id
+        join sum_seats as s
+            on f.aircraft_code = s.aircraft_code
         
 where
     f.flight_no in ('PG0194', 'PG0252', 'PG0480')
@@ -127,5 +140,6 @@ group by
     ap.city,
     d.distance,
     a.model,
-    e.expend
-order by 11 --от менее прибыльных к более
+    e.expend,
+    s.seats
+order by 13 --от менее прибыльных к более
